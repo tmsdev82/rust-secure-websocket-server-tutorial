@@ -1,3 +1,26 @@
-fn main() {
-    println!("Hello, world!");
+
+use warp::{Filter, Rejection, Reply, http::Response};
+
+type Result<T> = std::result::Result<T, Rejection>;
+
+#[tokio::main]
+async fn main() {
+    let default_route = warp::any().map(|| { "Welcome"});
+    let register_path = warp::path("register");
+    let register_routes = register_path
+    .and(warp::get())
+    .map(|| "Please use a HTTP POST request to register")
+    .or(register_path
+        .and(warp::post())
+        .and_then(register_handler));
+    
+    
+    let routes = register_routes.or(default_route).with(warp::cors().allow_any_origin());
+
+    warp::serve(routes).run(([127,0,0,1], 5000)).await;
+
+}
+
+async fn register_handler() -> Result<impl Reply> {
+    Ok(Response::builder().body("registered"))
 }
