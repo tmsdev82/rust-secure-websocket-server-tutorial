@@ -15,3 +15,4 @@ futures = { version = "0.3", default-features=false}
 uuid = { version = "0.8.2", features = ["serde", "v4"]}
 jsonwebtoken = "7"
 chrono = "0.4"
+scrypt = "0.8.0"
