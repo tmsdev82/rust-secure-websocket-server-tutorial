@@ -1,10 +1,20 @@
-use serde::Deserialize;
+use chrono::{Duration, Utc};
+use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
+use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, convert::Infallible, sync::Arc};
 use tokio::sync::Mutex;
 use warp::{http::Response, http::StatusCode, Filter, Rejection, Reply};
 
 type Result<T> = std::result::Result<T, Rejection>;
 type UsersDb = Arc<Mutex<HashMap<String, UserData>>>;
+
+const JWT_SECRET: &[u8; 10] = b"our_secret";
+#[derive(Deserialize, Serialize, Debug)]
+struct Claims {
+    sub: String,
+    iat: usize,
+    exp: usize,
+}
 
 #[derive(Debug, Clone, Deserialize)]
 struct UserData {
@@ -51,6 +61,31 @@ async fn main() {
     warp::serve(routes).run(([127, 0, 0, 1], 5000)).await;
 }
 
+fn get_jwt_for_user(user: &UserData) -> String {
+    let issued_at = Utc::now().timestamp();
+    let expiration_time = Utc::now()
+        .checked_add_signed(Duration::seconds(5))
+        .expect("invalid timestamp")
+        .timestamp();
+    let user_claims = Claims {
+        sub: user.username.to_string(),
+        iat: issued_at as usize,
+        exp: expiration_time as usize,
+    };
+
+    let token = match encode(
+        &Header::default(),
+        &user_claims,
+        &EncodingKey::from_secret(JWT_SECRET),
+    ) {
+        Ok(t) => t,
+        Err(_) => panic!(),
+    };
+    // let token = "test";
+
+    token
+}
+
 async fn register_handler(user: UserData, users_db: UsersDb) -> Result<impl Reply> {
     println!("Received UserData: {:?}", user);
     if users_db.lock().await.contains_key(&user.username) {
@@ -76,7 +111,7 @@ async fn login_handler(login_data: LoginData, users_db: UsersDb) -> Result<impl 
             println!("User '{}' not found in database", &login_data.username);
             return Ok(Response::builder()
                 .status(StatusCode::BAD_REQUEST)
-                .body("login failed"));
+                .body("login failed".to_string()));
         }
     };
 
@@ -84,11 +119,12 @@ async fn login_handler(login_data: LoginData, users_db: UsersDb) -> Result<impl 
         println!("Password incorrect for user: {}", &login_data.username);
         return Ok(Response::builder()
             .status(StatusCode::BAD_REQUEST)
-            .body("login failed"));
+            .body("login failed".to_string()));
     }
 
     println!("Login ok");
-    Ok(Response::builder().status(StatusCode::OK).body("login ok"))
+    let token = get_jwt_for_user(user);
+    Ok(Response::builder().status(StatusCode::OK).body(token))
 }
 
 fn with_users_db(
