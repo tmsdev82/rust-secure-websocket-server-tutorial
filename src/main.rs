@@ -64,7 +64,7 @@ async fn main() {
 fn get_jwt_for_user(user: &UserData) -> String {
     let issued_at = Utc::now().timestamp();
     let expiration_time = Utc::now()
-        .checked_add_signed(Duration::seconds(5))
+        .checked_add_signed(Duration::seconds(60))
         .expect("invalid timestamp")
         .timestamp();
     let user_claims = Claims {
@@ -81,7 +81,6 @@ fn get_jwt_for_user(user: &UserData) -> String {
         Ok(t) => t,
         Err(_) => panic!(),
     };
-    // let token = "test";
 
     token
 }
